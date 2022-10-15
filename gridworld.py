@@ -8,21 +8,29 @@ from heapq import heapify, heappop, heappush
 Class representing one gridworld of a given size.
 """
 class Gridworld:
-    def __init__(self, map_size=101) -> None:
+    def __init__(self, map_size=101, complexity=0.75, density=0.75) -> None:
         self.map_size = map_size + 2  # Size of the square gridworld in # of blocks (must be odd, add 2 for borders).
         self.true_map = [[0] * (self.map_size) for _ in range((self.map_size))]  # 2D array representing the gridworld. 0 = unblocked, 1 = blocked.
-        self.discovered_map = [[0] * (self.map_size) for _ in range((self.map_size))]  # Gridworld with all information discovered by agent only.
-        self.g_vals = [[0] * (self.map_size) for _ in range((self.map_size))]  # g values for all cells.
-        self.agent = (1, 1)  # Location of the agent on the map.
-        self.target = (self.map_size - 2, self.map_size - 2)  # Location of the target on the map.
+        self.discovered_map = [[]]  # Gridworld with all information discovered by agent only.
+        self.g_vals = [[]]  # g values for all cells.
+        self.search_vals = [[]]  # search values for all cells.
+        self.agent = (0, 0)  # Location of the agent on the map.
+        self.target = (0, 0)  # Location of the target on the map.
+
+        self.generate_map(complexity, density)  # Generate a new true map.
+        self.reset_map()  # Reset the map to its default state.
 
     """
     Resets the agent and the target to their default positions.
+    Clears all g & search values and wipes the discovered map.
     """
     def reset_map(self) -> None:
         self.agent = (1, 1)
         self.target = (self.map_size - 2, self.map_size - 2)
+        self.discovered_map = [[0] * (self.map_size) for _ in range((self.map_size))]
         self.g_vals = [[0] * (self.map_size) for _ in range((self.map_size))]
+        self.search_vals = [[0] * (self.map_size) for _ in range((self.map_size))]
+        self.uncover()  # Uncover the neighboring states to agent's starting position.
 
     """
     Generate a map with blocked obstacles (1) and unblocked free space (0).
@@ -45,10 +53,10 @@ class Gridworld:
         maze[:, 0] = maze[:, -1] = 1
 
         # Create aisles.
-        for i in range(density):
+        for _ in range(density):
             x, y = np.random.randint(0, shape[1] // 2 + 1) * 2, np.random.randint(0, shape[0] // 2 + 1) * 2
             maze[y, x] = 1
-            for j in range(complexity):
+            for _ in range(complexity):
                 neighbors = []
                 if x > 1:
                     neighbors.append((y, x - 2))
@@ -94,49 +102,23 @@ class Gridworld:
     """
     Normal A* to find the shortest path, based on agent's knowledge of the gridworld.
     """
-    def compute_path(self) -> List:
-        s_start = self.agent  # Starting state is location of agent.
-        s_goal = self.target  # Goal state is location of target.
-
-        # Zero out all g values.
-        self.g_vals = [[0] * (self.map_size) for _ in range((self.map_size))]
-
-        # Set g(s_goal) = infinity.
-        self.g_vals[s_goal[0]][s_goal[1]] = inf
-        # Set g(s_start) = 0.
-        self.g_vals[s_start[0]][s_start[1]] = 0 
-
-        # Tie breaking: largest g-value of any generated cell.
-        # Favors cells with larger g-values.
-        # Second tie breaking: random.
-        g_max = self.map_size ** 2
-
-        # Create an open list, represented as a binary heap.
-        open_list = []
-        # Insert s_start into open list.
-        priority = g_max * self.f(s_start) - self.g(s_start)
-        heappush(open_list, (priority, 0, s_start))  # (f, rand_tie_break, s)
-
-        # Create a closed list.
-        closed_list = set()
-
-        # Create a tree-pointer for identifying shortest path after A*.
-        # First item in tuple points to second item.
-        tree = []
+    def compute_path(self, s_start, s_goal, open_list, closed_list, tree, counter, g_max) -> None:
         while len(open_list) > 0:
             # Identify a state s with the smallest f-value in the open list.
             s = heappop(open_list)[2]
 
             # If s is the goal state, A* is finished.
             if s == s_goal:
-                return tree
+                return
             # Add s to the closed list.
             closed_list.add(s)
 
             # Try all possible actions from s to get successor states.
             succ_states = self.create_action_states(s)
             for succ in succ_states:
-                self.g_vals[succ[0]][succ[1]] = inf
+                if self.search_vals[succ[0]][succ[1]] < counter:
+                    self.g_vals[succ[0]][succ[1]] = inf
+                    self.search_vals[succ[0]][succ[1]] = counter
 
                 # Skip states already in closed list.
                 if succ in closed_list:
@@ -161,9 +143,74 @@ class Gridworld:
                         rand_tie_breaker = randint(0, 1000)
                         open_list[i] = (priority, rand_tie_breaker, succ)
                         heapify(open_list)
-
-        return None
     
+    """
+    Repeated A* to find the shorest path from agent to target.
+    Continuously calls A* (compute_path) until agent reaches target
+    or when no path is found.
+    Before searching, resets discovered map and all g & search values.
+    """
+    def repeated_compute_path(self) -> None:
+        # Initialize search counter to 0.
+        counter = 0
+        # Initialize search(s) and g(s) to 0 for all states.
+        self.reset_map()
+
+        s_start = self.agent  # Starting state is location of agent.
+        s_goal = self.target  # Goal state is location of target.
+
+        while s_start != s_goal:
+            # Increment search counter.
+            counter += 1
+
+            # Set g(s_start) = 0.
+            self.g_vals[s_start[0]][s_start[1]] = 0 
+            # Set search(s_start) = counter.
+            self.search_vals[s_start[0]][s_start[1]] = counter
+
+            # Set g(s_goal) = infinity.
+            self.g_vals[s_goal[0]][s_goal[1]] = inf
+            # Set search(s_goal) = counter.
+            self.search_vals[s_goal[0]][s_goal[1]] = counter
+
+            # Create an open list, represented as a binary heap.
+            open_list = []
+
+            # Create a closed list, represented as a set.
+            closed_list = set()
+
+            # Create a tree-pointer for identifying shortest path after A*.
+            # First item in tuple points to second item.
+            tree = []
+        
+            # Tie breaking: largest g-value of any generated cell.
+            # Favors cells with larger g-values.
+            # Second tie breaking: random.
+            g_max = self.map_size ** 2
+
+            # Insert s_start into open list.
+            priority = g_max * self.f(s_start) - self.g(s_start)
+            heappush(open_list, (priority, 0, s_start))  # (f, rand_tie_break, s)
+
+            # Normal A*.
+            self.compute_path(s_start, s_goal, open_list, closed_list, tree, counter, g_max)
+        
+            # If open list is empty, no path exists to the target.
+            if len(open_list) == 0:
+                print("Target cannot be reached; no path found.")
+                return
+            
+            # Follow tree-pointers from s_goal to s_start and move agent on this path
+            # from s_start to s_goal until s_goal is reached or path is blocked.
+            path = self.build_path(tree)
+            # If path was followed successfully, target is reached.
+            if self.follow_path(path):
+                print("Target reached!")
+                return
+            
+            # Otherwise, set s_start to agent's state.
+            s_start = self.agent
+
     """
     Returns whether a state s is in the open list.
     If yes, returns the index of s.
@@ -186,19 +233,15 @@ class Gridworld:
         # Try north.
         if self.discovered_map[s[0]][s[1] + 1] == 0:
             new_states.append((s[0], s[1] + 1))
-            #self.g_vals[s[0]][s[1] + 1] = self.g_vals[s[0]][s[1]] + 1
         # Try south.
         if self.discovered_map[s[0]][s[1] - 1] == 0:
             new_states.append((s[0], s[1] - 1))
-            #self.g_vals[s[0]][s[1] - 1] = self.g_vals[s[0]][s[1]] + 1
         # Try east.
         if self.discovered_map[s[0] + 1][s[1]] == 0:
             new_states.append((s[0] + 1, s[1]))
-            #self.g_vals[s[0] + 1][s[1]] = self.g_vals[s[0]][s[1]] + 1
         # Try west.
         if self.discovered_map[s[0] - 1][s[1]] == 0:
             new_states.append((s[0] - 1, s[1]))
-            #self.g_vals[s[0] - 1][s[1]] = self.g_vals[s[0]][s[1]] + 1
 
         return new_states
 
@@ -249,8 +292,7 @@ class Gridworld:
                     path.append(prev)
                 # Update goal with previous state.
                 goal = prev
-                #print("Added to path:", prev)
-        print(path)
+
         return reversed(path)
 
     """
