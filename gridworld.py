@@ -17,6 +17,7 @@ class Gridworld:
         self.agent = (0, 0)  # Location of the agent on the map.
         self.target = (0, 0)  # Location of the target on the map.
         self.expanded_cells = 0  # Number of expanded cells (cells added to closed list).
+        self.moves_taken = 0  # Number of moves made by the agent.
 
         if pregenerated_map is None:
             self.generate_map(complexity, density)  # Generate a new true map.
@@ -36,6 +37,7 @@ class Gridworld:
         self.g_vals = [[0] * (self.map_size) for _ in range((self.map_size))]
         self.search_vals = [[0] * (self.map_size) for _ in range((self.map_size))]
         self.expanded_cells = 0 
+        self.moves_taken = 0
         self.uncover()  # Uncover the neighboring states to agent's starting position.
 
     """
@@ -87,9 +89,9 @@ class Gridworld:
     Manhattan distance is used as the heuristic.
     Given two points a, b, returns the Manhattan distance between them.
     """
-    def h(self, s) -> int:
+    def h(self, s, s_goal) -> int:
         a = s
-        b = self.target
+        b = s_goal
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     """
@@ -102,8 +104,8 @@ class Gridworld:
     f(n), the evaluation function for A*.
     f(n) = g(n) + h(n).
     """
-    def f(self, s) -> int:
-        return self.g(s) + self.h(s)
+    def f(self, s, s_goal) -> int:
+        return self.g(s) + self.h(s, s_goal)
     
     """
     Normal A* to find the shortest path, based on agent's knowledge of the gridworld.
@@ -143,9 +145,9 @@ class Gridworld:
                     if i is None:
                         priority = 0
                         if large_g_ties:
-                            priority = g_max * self.f(succ) - self.g(succ)
+                            priority = g_max * self.f(succ, s_goal) - self.g(succ)
                         else:
-                            priority = self.f(succ) + self.g(succ)
+                            priority = self.f(succ, s_goal) + self.g(succ)
                         rand_tie_breaker = randint(0, 1000)
                         heappush(open_list, (priority, rand_tie_breaker, succ))
                     else:
@@ -153,9 +155,9 @@ class Gridworld:
                         # (Really, we just change its priority and re-heapify.)
                         priority = 0
                         if large_g_ties:
-                            priority = g_max * self.f(succ) - self.g(succ)
+                            priority = g_max * self.f(succ, s_goal) - self.g(succ)
                         else:
-                            priority = self.f(succ) + self.g(succ)
+                            priority = self.f(succ, s_goal) + self.g(succ)
                         rand_tie_breaker = randint(0, 1000)
                         open_list[i] = (priority, rand_tie_breaker, succ)
                         heapify(open_list)
@@ -213,16 +215,15 @@ class Gridworld:
             if large_g_ties:
                 # Largest g-value of any generated cell.
                 # Favors cells with larger g-values.
-                priority = g_max * self.f(s_start) - self.g(s_start)
+                priority = g_max * self.f(s_start, s_goal) - self.g(s_start)
             else:
                 # Smallest g-value of any generated cell.
                 # Favors cells with smaller g-values.
-                priority = self.f(s_start) + self.g(s_start)
+                priority = self.f(s_start, s_goal) + self.g(s_start)
 
             # Second tie breaking: random.
 
             # Insert s_start into open list.
-            priority = g_max * self.f(s_start) - self.g(s_start)
             heappush(open_list, (priority, 0, s_start))  # (f, rand_tie_break, s)
 
             # Normal A*.
@@ -310,6 +311,7 @@ class Gridworld:
     def advance(self, next) -> bool:
         if self.true_map[next[0]][next[1]] == 0:
             self.agent = next
+            self.moves_taken += 1
             self.uncover()
             return True
         else:
@@ -338,7 +340,7 @@ class Gridworld:
                 # Update goal with previous state.
                 goal = prev
 
-        print(path)
+        #print(path)
         if reverse:
             return path
         else:
@@ -353,10 +355,10 @@ class Gridworld:
     def follow_path(self, path) -> bool:
         for next in path[1 :]:
             if not self.advance(next):
-                self.print_map()
+                #self.print_map()
                 return False
         
-        self.print_map()
+        #self.print_map()
         return True
 
     """
