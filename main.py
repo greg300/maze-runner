@@ -1,16 +1,14 @@
+import pickle
+
 from gridworld import Gridworld
 
-#mapSize = 101
-map_size = 21  # Size of the gridworld in # of blocks (always square).
-map = Gridworld(map_size)  # Gridworld.
+maps = {}
+with open('gridworld_maps.pickle', 'rb') as handle:
+    maps = pickle.load(handle)
 
-#map.generate_map()
-#map.uncover()
-map.print_map()
+map_size = len(maps[0])
 
-map.repeated_compute_path()
-#res = map.compute_path()
-#path = map.build_path(res)
-#print(map.follow_path(path))
-
-
+for k in maps:
+    m = maps[k]
+    g = Gridworld(map_size=map_size - 2, pregenerated_map=m)
+    
