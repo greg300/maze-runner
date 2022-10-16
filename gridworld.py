@@ -112,7 +112,12 @@ class Gridworld:
     Returns True if a path is found, False otherwise.
     """
     def compute_path(self, s_start, s_goal, open_list, closed_list, tree, counter, g_max, large_g_ties=True) -> bool:
+        #while self.g(s_goal) > self.g(open_list[0][2]) + self.h(open_list[0][2], s_goal):
+        #print(counter)
         while len(open_list) > 0:
+            # if not self.g(s_goal) > self.g(open_list[0][2]) + self.h(open_list[0][2], s_goal):
+            #     return False
+
             # Identify a state s with the smallest f-value in the open list.
             s = heappop(open_list)[2]
 
@@ -126,13 +131,14 @@ class Gridworld:
             # Try all possible actions from s to get successor states.
             succ_states = self.create_action_states(s)
             for succ in succ_states:
+                # Skip states already in closed list.
+                if succ in closed_list:
+                    continue
+                
                 if self.search_vals[succ[0]][succ[1]] < counter:
                     self.g_vals[succ[0]][succ[1]] = inf
                     self.search_vals[succ[0]][succ[1]] = counter
 
-                # Skip states already in closed list.
-                if succ in closed_list:
-                    continue
                 if self.g(succ) > self.g(s):
                     # Sets g value of successor state to g value of s plus action cost (1).
                     self.g_vals[succ[0]][succ[1]] = self.g_vals[s[0]][s[1]] + 1
@@ -144,22 +150,24 @@ class Gridworld:
                     # Insert successor state into open list (if it is not already there).
                     if i is None:
                         priority = 0
+                        tie_breaker = 0
                         if large_g_ties:
                             priority = g_max * self.f(succ, s_goal) - self.g(succ)
+                            tie_breaker = randint(0, 100)
                         else:
                             priority = self.f(succ, s_goal) + self.g(succ)
-                        rand_tie_breaker = randint(0, 1000)
-                        heappush(open_list, (priority, rand_tie_breaker, succ))
+                        heappush(open_list, (priority, tie_breaker, succ))
                     else:
                         # Remove state from open list and add it back with new f value.
                         # (Really, we just change its priority and re-heapify.)
                         priority = 0
+                        tie_breaker = 0
                         if large_g_ties:
                             priority = g_max * self.f(succ, s_goal) - self.g(succ)
+                            tie_breaker = randint(0, 100)
                         else:
                             priority = self.f(succ, s_goal) + self.g(succ)
-                        rand_tie_breaker = randint(0, 1000)
-                        open_list[i] = (priority, rand_tie_breaker, succ)
+                        open_list[i] = (priority, tie_breaker, succ)
                         heapify(open_list)
 
         return False
@@ -224,10 +232,12 @@ class Gridworld:
             # Second tie breaking: random.
 
             # Insert s_start into open list.
-            heappush(open_list, (priority, 0, s_start))  # (f, rand_tie_break, s)
+            heappush(open_list, (priority, 0, s_start))  # (f, tie_breaker, s)
 
             # Normal A*.
-            path_found = self.compute_path(s_start, s_goal, open_list, closed_list, tree, counter, g_max)
+            path_found = self.compute_path(s_start, s_goal, open_list, closed_list, tree, counter, g_max, large_g_ties)
+            #print(len(open_list))
+            #print(len(closed_list))
         
             #print(tree)
             # If open list is empty, no path exists to the target.
@@ -243,7 +253,7 @@ class Gridworld:
                 #print("Target reached!")
                 #print("Expanded " + str(self.expanded_cells) + " cells.")
                 return True
-            
+            #print(self.agent)
             # Otherwise, set s_start to agent's state.
             if reverse:
                 s_goal = self.agent

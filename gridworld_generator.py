@@ -17,7 +17,7 @@ map_size = 101
 maps = generate_true_maps(num_maps, map_size) 
 
 # Save all the data.
-with open("gridworld_maps.pickle", "wb") as handle:
+with open("gridworld_maps_tiny.pickle", "wb") as handle:
     pickle._dump(maps, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
