@@ -13,11 +13,13 @@ class Gridworld:
         self.true_map = [[0] * (self.map_size) for _ in range((self.map_size))]  # 2D array representing the gridworld. 0 = unblocked, 1 = blocked.
         self.discovered_map = [[]]  # Gridworld with all information discovered by agent only.
         self.g_vals = [[]]  # g values for all cells.
+        self.h_vals = [[]]  # h values for all cells.
         self.search_vals = [[]]  # search values for all cells.
         self.agent = (0, 0)  # Location of the agent on the map.
         self.target = (0, 0)  # Location of the target on the map.
         self.expanded_cells = 0  # Number of expanded cells (cells added to closed list).
         self.moves_taken = 0  # Number of moves made by the agent.
+        self.max_expanded = 0  # Max # of cells expanded in any single A* search.
 
         if pregenerated_map is None:
             self.generate_map(complexity, density)  # Generate a new true map.
@@ -35,9 +37,11 @@ class Gridworld:
         self.target = (self.map_size - 2, self.map_size - 2)
         self.discovered_map = [[0] * (self.map_size) for _ in range((self.map_size))]
         self.g_vals = [[0] * (self.map_size) for _ in range((self.map_size))]
+        self.h_vals = [[0] * (self.map_size) for _ in range((self.map_size))]
         self.search_vals = [[0] * (self.map_size) for _ in range((self.map_size))]
         self.expanded_cells = 0 
         self.moves_taken = 0
+        self.max_expanded = 0
         self.uncover()  # Uncover the neighboring states to agent's starting position.
 
     """
@@ -114,6 +118,7 @@ class Gridworld:
     def compute_path(self, s_start, s_goal, open_list, closed_list, tree, counter, g_max, large_g_ties=True) -> bool:
         #while self.g(s_goal) > self.g(open_list[0][2]) + self.h(open_list[0][2], s_goal):
         #print(counter)
+        expanded = 0
         while len(open_list) > 0:
             # if not self.g(s_goal) > self.g(open_list[0][2]) + self.h(open_list[0][2], s_goal):
             #     return False
@@ -123,10 +128,22 @@ class Gridworld:
 
             # If s is the goal state, A* is finished.
             if s == s_goal:
+                #print("A* reached goal.")
+                #print(expanded)
+                #print(self.g_vals)
+                self.max_expanded = expanded if expanded > self.max_expanded else self.max_expanded
                 return True
             # Add s to the closed list.
+            #if s in closed_list:
+                #print("ERR, " + str(s))
             closed_list.add(s)
             self.expanded_cells += 1
+            expanded += 1
+
+            # if len(closed_list) > 10000:
+            #     print("Closed list: " + str(len(closed_list)))
+            # if len(open_list) > 1000:
+            #     print("Open list: " + str(len(open_list)))
 
             # Try all possible actions from s to get successor states.
             succ_states = self.create_action_states(s)
@@ -134,18 +151,18 @@ class Gridworld:
                 # Skip states already in closed list.
                 if succ in closed_list:
                     continue
-                
+
                 if self.search_vals[succ[0]][succ[1]] < counter:
                     self.g_vals[succ[0]][succ[1]] = inf
                     self.search_vals[succ[0]][succ[1]] = counter
 
-                if self.g(succ) > self.g(s):
+                if self.g(succ) > self.g(s) + 1:
                     # Sets g value of successor state to g value of s plus action cost (1).
                     self.g_vals[succ[0]][succ[1]] = self.g_vals[s[0]][s[1]] + 1
                     # Set tree-pointer of successor state to point to state s.
                     tree.append((succ, s))
                 
-                    i = self.is_in_open_list(s, open_list)
+                    i = self.is_in_open_list(succ, open_list)
 
                     # Insert successor state into open list (if it is not already there).
                     if i is None:
@@ -156,6 +173,7 @@ class Gridworld:
                             tie_breaker = randint(0, 100)
                         else:
                             priority = self.f(succ, s_goal) + self.g(succ)
+                        #print("Adding " + str(succ))
                         heappush(open_list, (priority, tie_breaker, succ))
                     else:
                         # Remove state from open list and add it back with new f value.
@@ -167,6 +185,7 @@ class Gridworld:
                             tie_breaker = randint(0, 100)
                         else:
                             priority = self.f(succ, s_goal) + self.g(succ)
+                        #print("Updating " + str(succ))
                         open_list[i] = (priority, tie_breaker, succ)
                         heapify(open_list)
 
@@ -185,6 +204,9 @@ class Gridworld:
         # Initialize search(s) and g(s) to 0 for all states.
         self.reset_map()
 
+        # self.agent = (self.map_size - 2, self.map_size - 2)
+        # self.target = (1, 1)
+
         s_start = self.agent  # Starting state is location of agent.
         s_goal = self.target  # Goal state is location of target.
 
@@ -196,6 +218,7 @@ class Gridworld:
         while s_start != s_goal:
             # Increment search counter.
             counter += 1
+            #print(counter)
 
             # Set g(s_start) = 0.
             self.g_vals[s_start[0]][s_start[1]] = 0 
@@ -261,6 +284,160 @@ class Gridworld:
                 s_start = self.agent
 
     """
+    h(n)_new, an adaptive heuristic function for adaptive A*.
+    h(n)_new = g(n_goal) - g(n).
+    """
+    def h_new(self, s, s_goal) -> int:
+        a = s
+        b = s_goal
+        if self.h_vals[s[0]][s[1]] == 0:
+            self.h_vals[s[0]][s[1]] = abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        return self.h_vals[s[0]][s[1]]
+
+    """
+    f(n)_new, the evaluation function for adaptive A*.
+    f(n) = g(n) + h(n).
+    """
+    def f_new(self, s, s_goal) -> int:
+        return self.g(s) + self.h_new(s, s_goal)
+
+    """
+    Updates adaptive heuristic h(n) for all states.
+    """
+    def update_h_new(self, s_goal, closed_list) -> None:
+        for s in closed_list:
+            self.h_vals[s[0]][s[1]] = self.g(s_goal) - self.g(s)
+    
+    """
+    Adaptive A* to find the shortest path, based on agent's knowledge of the gridworld.
+    Breaks ties favoring larger g-values.
+    Returns True if a path is found, False otherwise.
+    """
+    def adaptive_compute_path(self, s_start, s_goal, open_list, closed_list, tree, counter, g_max) -> bool:
+        expanded = 0
+        while len(open_list) > 0:
+            # Identify a state s with the smallest f-value in the open list.
+            s = heappop(open_list)[2]
+
+            # If s is the goal state, A* is finished.
+            if s == s_goal:
+                #print(expanded)
+                self.max_expanded = expanded if expanded > self.max_expanded else self.max_expanded
+                return True
+            # Add s to the closed list.
+
+            closed_list.add(s)
+            self.expanded_cells += 1
+            expanded += 1
+
+            # Try all possible actions from s to get successor states.
+            succ_states = self.create_action_states(s)
+            for succ in succ_states:
+                # Skip states already in closed list.
+                if succ in closed_list:
+                    continue
+
+                if self.search_vals[succ[0]][succ[1]] < counter:
+                    self.g_vals[succ[0]][succ[1]] = inf
+                    self.search_vals[succ[0]][succ[1]] = counter
+
+                if self.g(succ) > self.g(s) + 1:
+                    # Sets g value of successor state to g value of s plus action cost (1).
+                    self.g_vals[succ[0]][succ[1]] = self.g_vals[s[0]][s[1]] + 1
+                    # Set tree-pointer of successor state to point to state s.
+                    tree.append((succ, s))
+                
+                    i = self.is_in_open_list(succ, open_list)
+
+                    # Insert successor state into open list (if it is not already there).
+                    if i is None:
+                        priority = g_max * self.f_new(succ, s_goal) - self.g(succ)
+                        tie_breaker = randint(0, 100)
+                        heappush(open_list, (priority, tie_breaker, succ))
+                    else:
+                        # Remove state from open list and add it back with new f value.
+                        # (Really, we just change its priority and re-heapify.)
+                        priority = g_max * self.f_new(succ, s_goal) - self.g(succ)
+                        tie_breaker = randint(0, 100)
+                        open_list[i] = (priority, tie_breaker, succ)
+                        heapify(open_list)
+
+        return False
+    
+    """
+    Adaptive repeated A* to find the shorest path from agent to target.
+    Continuously calls A* (adaptive_compute_path) until agent reaches target
+    or when no path is found.
+    Before searching, resets discovered map and all g & search values.
+    Returns True if a path is found, False otherwise.
+    """
+    def adaptive_repeated_compute_path(self) -> bool:
+        # Initialize search counter to 0.
+        counter = 0
+        # Initialize search(s) and g(s) to 0 for all states.
+        self.reset_map()
+
+        s_start = self.agent  # Starting state is location of agent.
+        s_goal = self.target  # Goal state is location of target.
+
+        while s_start != s_goal:
+            # Increment search counter.
+            counter += 1
+
+            # Set g(s_start) = 0.
+            self.g_vals[s_start[0]][s_start[1]] = 0 
+            # Set search(s_start) = counter.
+            self.search_vals[s_start[0]][s_start[1]] = counter
+
+            # Set g(s_goal) = infinity.
+            self.g_vals[s_goal[0]][s_goal[1]] = inf
+            # Set search(s_goal) = counter.
+            self.search_vals[s_goal[0]][s_goal[1]] = counter
+
+            # Create an open list, represented as a binary heap.
+            open_list = []
+
+            # Create a closed list, represented as a set.
+            closed_list = set()
+
+            # Create a tree-pointer for identifying shortest path after A*.
+            # First item in tuple points to second item.
+            tree = []
+        
+            # Tie breaking:
+            g_max = self.map_size ** 2
+            # Largest g-value of any generated cell.
+            # Favors cells with larger g-values.
+            priority = g_max * self.f_new(s_start, s_goal) - self.g(s_start)
+
+            # Second tie breaking: random.
+
+            # Insert s_start into open list.
+            heappush(open_list, (priority, 0, s_start))  # (f, tie_breaker, s)
+
+            # Adaptive A*.
+            path_found = self.adaptive_compute_path(s_start, s_goal, open_list, closed_list, tree, counter, g_max)
+        
+            # If open list is empty, no path exists to the target.
+            if len(open_list) == 0 and not path_found:
+                #print("Target cannot be reached; no path found.")
+                return False
+
+            # Follow tree-pointers from s_goal to s_start and move agent on this path
+            # from s_start to s_goal until s_goal is reached or path is blocked.
+            path = self.build_path(tree, s_start, s_goal)
+            # If path was followed successfully, target is reached.
+            if self.follow_path(path):
+                return True
+
+            # Otherwise, set s_start to agent's state.
+            s_start = self.agent
+
+            # Update h_new heuristic.
+            self.update_h_new(s_goal, closed_list)
+
+    """
     Returns whether a state s is in the open list.
     If yes, returns the index of s.
     If no, returns None.
@@ -281,21 +458,21 @@ class Gridworld:
         new_states = []
 
         # Try north.
-        if s[1] > 0:  # Ensure not touching top border.
-            if self.discovered_map[s[0]][s[1] - 1] == 0:
-                new_states.append((s[0], s[1] - 1))
-        # Try south.
-        if s[1] < self.map_size - 1:  # Ensure not touching bottom border.
-            if self.discovered_map[s[0]][s[1] + 1] == 0:
-                new_states.append((s[0], s[1] + 1))
-        # Try east.
-        if s[0] < self.map_size - 1:  # Ensure not touching right border.
-            if self.discovered_map[s[0] + 1][s[1]] == 0:
-                new_states.append((s[0] + 1, s[1]))
-        # Try west.
-        if s[0] > 0:  # Ensure not touching left border.
+        if s[0] > 1:  # Ensure not touching top border.
             if self.discovered_map[s[0] - 1][s[1]] == 0:
                 new_states.append((s[0] - 1, s[1]))
+        # Try south.
+        if s[0] < self.map_size - 2:  # Ensure not touching bottom border.
+            if self.discovered_map[s[0] + 1][s[1]] == 0:
+                new_states.append((s[0] + 1, s[1]))
+        # Try east.
+        if s[1] < self.map_size - 2:  # Ensure not touching right border.
+            if self.discovered_map[s[0]][s[1] + 1] == 0:
+                new_states.append((s[0], s[1] + 1))
+        # Try west.
+        if s[1] > 1:  # Ensure not touching left border.
+            if self.discovered_map[s[0]][s[1] - 1] == 0:
+                new_states.append((s[0], s[1] - 1))
 
         return new_states
 
@@ -305,13 +482,13 @@ class Gridworld:
     """
     def uncover(self) -> None:
         # North.
-        self.discovered_map[self.agent[0]][self.agent[1] - 1] = self.true_map[self.agent[0]][self.agent[1] - 1]
-        # South.
-        self.discovered_map[self.agent[0]][self.agent[1] + 1] = self.true_map[self.agent[0]][self.agent[1] + 1]
-        # East.
-        self.discovered_map[self.agent[0] + 1][self.agent[1]] = self.true_map[self.agent[0] + 1][self.agent[1]]
-        # West.
         self.discovered_map[self.agent[0] - 1][self.agent[1]] = self.true_map[self.agent[0] - 1][self.agent[1]]
+        # South.
+        self.discovered_map[self.agent[0] + 1][self.agent[1]] = self.true_map[self.agent[0] + 1][self.agent[1]]
+        # East.
+        self.discovered_map[self.agent[0]][self.agent[1] + 1] = self.true_map[self.agent[0]][self.agent[1] + 1]
+        # West.
+        self.discovered_map[self.agent[0]][self.agent[1] - 1] = self.true_map[self.agent[0]][self.agent[1] - 1]
 
     """
     Attempts to move the agent's location from its current cell
@@ -319,12 +496,15 @@ class Gridworld:
     Returns False if unsuccessful, True otherwise.
     """
     def advance(self, next) -> bool:
+        # print(self.agent, next)
+        # self.print_map()
         if self.true_map[next[0]][next[1]] == 0:
             self.agent = next
             self.moves_taken += 1
             self.uncover()
             return True
         else:
+            # print("Hit a block!")
             return False
     
     """

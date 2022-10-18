@@ -45,9 +45,27 @@ g_0 = Gridworld(map_size=map_size - 2, pregenerated_map=map_0)
 # else:
 #     print("No path found for map " + str(0) + ".")
 
-# Backward A*, ties favor large g values.
-print("Testing backward A*, ties favoring large g values...")
-res = g_0.repeated_compute_path(reverse=True, large_g_ties=True)
+# # Backward A*, ties favor large g values.
+# print("Testing backward A*, ties favoring large g values...")
+# res = g_0.repeated_compute_path(reverse=True, large_g_ties=True)
+# if res:
+#     print("Path found for map " + str(0) + " with " + str(g_0.expanded_cells) + " expanded cells.")
+#     print("\tMoves taken: " + str(g_0.moves_taken))
+# else:
+#     print("No path found for map " + str(0) + ".")
+
+# # Backward A*, ties favor small g values.
+# print("Testing backward A*, ties favoring small g values...")
+# res = g_0.repeated_compute_path(reverse=True, large_g_ties=False)
+# if res:
+#     print("Path found for map " + str(0) + " with " + str(g_0.expanded_cells) + " expanded cells.")
+#     print("\tMoves taken: " + str(g_0.moves_taken))
+# else:
+#     print("No path found for map " + str(0) + ".")
+
+# Adaptive A*, ties favor large g values.
+print("Testing adaptive A*, ties favoring large g values...")
+res = g_0.adaptive_repeated_compute_path()
 if res:
     print("Path found for map " + str(0) + " with " + str(g_0.expanded_cells) + " expanded cells.")
     print("\tMoves taken: " + str(g_0.moves_taken))
