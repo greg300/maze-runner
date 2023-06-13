@@ -1,5 +1,9 @@
-# Assignment 1 - Maze Runner
+# A* Maze Runner
 ## CS 520 - Introduction to Artificial Intelligence
+
+A console-based gridworld generator and solver. A* and adaptive A* are separately used and evaluated as algorithms to solve a given gridworld.
+
+## Implementation Details
 
 Implementation was completed in Python, using Python 3.9.12 on an Intel 2019 MacBook Pro running macOS Monterey.
 	    
